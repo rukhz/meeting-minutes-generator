@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting - {{ meeting_id }}</title>
+    <script src="https://meet.jit.si/external_api.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #2d2d2d;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .header h2 {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-record {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-record:hover {
+            background: #c0392b;
+        }
+
+        .btn-record.recording {
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+
+        .btn-stop {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #7f8c8d;
+        }
+
+        .btn-leave {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-leave:hover {
+            background: #c0392b;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .status {
+            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            background: #34495e;
+        }
+
+        .status.recording {
+            background: #27ae60;
+        }
+
+        #jitsi-container {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        .info-panel {
+            background: #2d2d2d;
+            padding: 15px 20px;
+            border-top: 1px solid #444;
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Meeting: {{ meeting_id }}</h2>
+        <div class="controls">
+            <div id="status" class="status">Connecting...</div>
+            <button id="leaveBtn" class="btn btn-leave">Leave Meeting</button>
+        </div>
+    </div>
+
+    <div id="jitsi-container"></div>
+
+    <div class="info-panel">
+        <div id="info">Connecting to meeting... Recording will start automatically when you join.</div>
+    </div>
+
+    <script>
+        let api = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let audioStream = null;
+        let isLeaving = false;
+        const meetingId = '{{ meeting_id }}';
+        const safeMeetingId = '{{ safe_meeting_id }}';
+        const userName = sessionStorage.getItem('userName') || 'Guest';
+
+        // Initialize Jitsi Meet
+        const domain = 'meet.jit.si';
+        const options = {
+            roomName: meetingId,
+            width: '100%',
+            height: '100%',
+            parentNode: document.querySelector('#jitsi-container'),
+            userInfo: {
+                displayName: userName
+            },
+            configOverwrite: {
+                startAudioMuted: false,
+                startVideoMuted: false,
+            },
+            interfaceConfigOverwrite: {
+                TOOLBAR_BUTTONS: [
+                    'microphone', 'camera', 'closedcaptions', 'desktop',
+                    'fullscreen', 'fodeviceselection', 'hangup', 'profile',
+                    'recording', 'settings', 'raisehand', 'videoquality',
+                    'filmstrip', 'feedback', 'stats', 'shortcuts'
+                ],
+            }
+        };
+
+        api = new JitsiMeetExternalAPI(domain, options);
+
+        // Auto-start recording when joining the meeting
+        api.addEventListener('videoConferenceJoined', async () => {
+            console.log('Joined meeting - starting automatic recording');
+            document.getElementById('status').textContent = 'Joined';
+            updateInfo('Joined meeting. Starting automatic recording...');
+            await startRecording();
+        });
+
+        // Stop recording when leaving the meeting
+        api.addEventListener('readyToClose', () => {
+            console.log('Meeting ending - stopping recording');
+            stopRecordingAndSave();
+        });
+
+        // Also listen for hangup event
+        api.addEventListener('videoConferenceLeft', () => {
+            console.log('Left meeting - stopping recording');
+            stopRecordingAndSave();
+        });
+
+        // Recording functionality using MediaRecorder API
+        async function startRecording() {
+            try {
+                // Get audio stream from the browser
+                audioStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true,
+                    video: false 
+                });
+
+                // Check if MediaRecorder is supported
+                if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                    updateInfo('WebM audio recording is not supported. Please use Chrome or Edge.');
+                    document.getElementById('status').textContent = 'Not Supported';
+                    return;
+                }
+
+                audioChunks = [];
+                mediaRecorder = new MediaRecorder(audioStream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    if (audioChunks.length > 0) {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        
+                        // Stop all tracks
+                        if (audioStream) {
+                            audioStream.getTracks().forEach(track => track.stop());
+                            audioStream = null;
+                        }
+
+                        // Save recording
+                        await saveRecording(audioBlob);
+                    }
+                    
+                    // Navigate away if we're leaving
+                    if (isLeaving) {
+                        setTimeout(() => {
+                            if (api) {
+                                api.dispose();
+                            }
+                            window.location.href = '/';
+                        }, 1500);
+                    }
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+
+                // Update UI
+                document.getElementById('status').textContent = 'Recording';
+                document.getElementById('status').classList.add('recording');
+                updateInfo('Recording in progress... The recording will be saved automatically when you leave the meeting.');
+
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                updateInfo('Failed to start recording. Please ensure microphone permissions are granted.');
+                document.getElementById('status').textContent = 'Error';
+            }
+        }
+
+        function stopRecordingAndSave() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive' && isRecording) {
+                isRecording = false;
+                document.getElementById('status').textContent = 'Stopping...';
+                document.getElementById('status').classList.remove('recording');
+                updateInfo('Stopping recording and saving...');
+                mediaRecorder.stop();
+            }
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function saveRecording(audioBlob) {
+            try {
+                // Generate filename with timestamp
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const filename = `${safeMeetingId || meetingId}_${timestamp}.webm`;
+                
+                // Auto-download the recording
+                downloadBlob(audioBlob, filename);
+                updateInfo(`Recording saved and downloaded as ${filename}`);
+                document.getElementById('status').textContent = 'Downloaded';
+
+                // Also save to server (optional backup)
+                try {
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, filename);
+                    formData.append('meeting_id', safeMeetingId || meetingId);
+
+                    const response = await fetch('/api/save-recording', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        console.log('Recording also saved to server:', result.filename);
+                    }
+                } catch (serverError) {
+                    // If server save fails, it's okay - download already happened
+                    console.warn('Failed to save to server (download successful):', serverError);
+                }
+            } catch (error) {
+                console.error('Error processing recording:', error);
+                updateInfo('Error processing recording: ' + error.message);
+                document.getElementById('status').textContent = 'Error';
+            }
+        }
+
+        function updateInfo(message) {
+            document.getElementById('info').textContent = message;
+        }
+
+        // Leave button handler
+        document.getElementById('leaveBtn').addEventListener('click', () => {
+            isLeaving = true;
+            stopRecordingAndSave();
+            // Navigation will happen in onstop handler after recording is saved
+        });
+
+        // Handle page unload - stop recording if still active
+        window.addEventListener('beforeunload', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            if (api) {
+                api.dispose();
+            }
+        });
+    </script>
+</body>
+</html>
+

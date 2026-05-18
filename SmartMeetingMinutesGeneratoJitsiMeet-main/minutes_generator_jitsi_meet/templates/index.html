@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jitsi Meeting Recorder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .info {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .recordings-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .recordings-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .recordings-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Jitsi Meeting Recorder</h1>
+        <p class="subtitle">Join a meeting and record the audio</p>
+        
+        <form id="joinForm">
+            <div class="form-group">
+                <label for="meetingId">Meeting ID / Room Name</label>
+                <input 
+                    type="text" 
+                    id="meetingId" 
+                    name="meetingId" 
+                    placeholder="Enter meeting room name"
+                    required
+                    autocomplete="off"
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="userName">Your Name (Optional)</label>
+                <input 
+                    type="text" 
+                    id="userName" 
+                    name="userName" 
+                    placeholder="Enter your name"
+                    autocomplete="off"
+                >
+            </div>
+            
+            <button type="submit" class="btn">Join Meeting</button>
+        </form>
+
+        <div class="info">
+            <strong>Note:</strong> Make sure to allow microphone permissions when prompted. Recording will start automatically when you join the meeting and stop automatically when you leave. The file will be downloaded to your computer automatically.
+        </div>
+
+        <div class="recordings-link">
+            <a href="/recordings">View Saved Recordings →</a>
+        </div>
+    </div>
+
+    <script>
+        function extractRoomName(input) {
+            // Remove whitespace
+            input = input.trim();
+            
+            // Check if it's a full URL
+            if (input.startsWith('http://') || input.startsWith('https://')) {
+                try {
+                    const url = new URL(input);
+                    // Extract room name from path (e.g., /RoomName from https://meet.jit.si/RoomName)
+                    let roomName = url.pathname;
+                    // Remove leading/trailing slashes
+                    roomName = roomName.replace(/^\/+|\/+$/g, '');
+                    // Remove query params and fragments
+                    roomName = roomName.split('?')[0].split('#')[0];
+                    return roomName;
+                } catch (e) {
+                    // If URL parsing fails, try to extract manually
+                    const match = input.match(/\/\/[^\/]+\/([^\/\?#]+)/);
+                    return match ? match[1] : input;
+                }
+            }
+            // It's already a room name
+            return input;
+        }
+
+        document.getElementById('joinForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const meetingInput = document.getElementById('meetingId').value.trim();
+            const userName = document.getElementById('userName').value.trim() || 'Guest';
+            
+            if (meetingInput) {
+                // Extract room name from URL or use as-is
+                const roomName = extractRoomName(meetingInput);
+                
+                // Store userName in sessionStorage for use in meeting page
+                sessionStorage.setItem('userName', userName);
+                // Redirect to meeting page
+                window.location.href = `/meeting/${encodeURIComponent(roomName)}`;
+            }
+        });
+    </script>
+</body>
+</html>
+

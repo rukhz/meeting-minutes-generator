@@ -1,0 +1,44 @@
+rules_version = '2';
+// Smart Meeting Minutes Generator - Firestore Security Rules
+// Deploy: firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Helper: user owns the resource
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    
+    // User profiles - users can read/write their own
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Meetings - scoped under users; only owner can access
+    match /users/{userId}/meetings/{meetingId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Transcripts subcollection
+    match /users/{userId}/meetings/{meetingId}/transcripts/{docId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Action items subcollection
+    match /users/{userId}/meetings/{meetingId}/action_items/{docId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Admin collection - optional; restrict to admin role
+    // Requires custom claims: { admin: true }
+    match /admin/{doc=**} {
+      allow read, write: if isSignedIn() && request.auth.token.admin == true;
+    }
+  }
+}

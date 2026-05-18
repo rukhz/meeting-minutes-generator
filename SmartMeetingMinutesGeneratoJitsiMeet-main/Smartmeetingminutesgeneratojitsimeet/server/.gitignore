@@ -1,0 +1,6 @@
+node_modules/
+recordings/
+*.log
+.env
+.DS_Store
+

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Jitsi Recording</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 32px;
+            max-width: 700px;
+            width: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 22px;
+        }
+
+        .back-link {
+            text-decoration: none;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"]:focus,
+        input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #777;
+            margin-top: 4px;
+        }
+
+        .status {
+            margin-top: 16px;
+            font-size: 14px;
+        }
+
+        .status.error {
+            color: #c0392b;
+        }
+
+        .status.success {
+            color: #27ae60;
+        }
+
+        .minutes-container {
+            margin-top: 24px;
+            max-height: 360px;
+            overflow: auto;
+            border-radius: 8px;
+            background: #0d1117;
+            color: #e5e7eb;
+            padding: 12px;
+            font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
+
+        .minutes-container pre {
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Upload Jitsi Meeting Recording</h1>
+            <a href="/" class="back-link">← Back to Home</a>
+        </div>
+
+        <p class="subtitle">
+            Upload a Jitsi meeting recording (for example a recording you captured from Jitsi)
+            and we will generate structured, professional meeting minutes.
+        </p>
+
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="meetingId">Meeting name (optional)</label>
+                <input
+                    type="text"
+                    id="meetingId"
+                    name="meetingId"
+                    placeholder="e.g. Sprint planning – 2026‑02‑09"
+                    autocomplete="off"
+                >
+                <div class="help-text">
+                    Used only to label the meeting in the result; it does not affect analysis.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="participantNames">Participant names (optional)</label>
+                <input
+                    type="text"
+                    id="participantNames"
+                    name="participant_names"
+                    placeholder="e.g. Alice, Bob, Carol"
+                    autocomplete="off"
+                >
+                <div class="help-text">
+                    Comma-separated names from the meeting. Speaker 1 → first name, Speaker 2 → second, etc. Leave empty to show &quot;Speaker 1&quot;, &quot;Speaker 2&quot;.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="audioFile">Meeting audio or video file</label>
+                <input
+                    type="file"
+                    id="audioFile"
+                    name="audio"
+                    accept=".webm,.wav,.mp3,.m4a,.ogg,.mp4,audio/*,video/*"
+                    required
+                >
+                <div class="help-text">
+                    Supported examples: Jitsi WebM/MP4 recordings, plus generic WebM, WAV, MP3, M4A, OGG.
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Generate Minutes</button>
+        </form>
+
+        <div id="status" class="status"></div>
+
+        <div id="minutesContainer" class="minutes-container" style="display:none;">
+            <pre id="minutesPre"></pre>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const statusEl = document.getElementById('status');
+        const submitBtn = document.getElementById('submitBtn');
+        const minutesContainer = document.getElementById('minutesContainer');
+        const minutesPre = document.getElementById('minutesPre');
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const fileInput = document.getElementById('audioFile');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusEl.textContent = 'Please select a recording file to upload.';
+                statusEl.className = 'status error';
+                return;
+            }
+
+            const formData = new FormData();
+            const meetingId = document.getElementById('meetingId').value.trim();
+            const participantNames = document.getElementById('participantNames').value.trim();
+            formData.append('audio', fileInput.files[0]);
+            if (meetingId) {
+                formData.append('meeting_id', meetingId);
+            }
+            if (participantNames) {
+                formData.append('participant_names', participantNames);
+            }
+
+            statusEl.textContent = 'Uploading and processing... this may take a while for long recordings.';
+            statusEl.className = 'status';
+            submitBtn.disabled = true;
+            minutesContainer.style.display = 'none';
+            minutesPre.textContent = '';
+
+            try {
+                const response = await fetch('/api/generate-minutes', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                let result;
+                try {
+                    result = await response.json();
+                } catch (_) {
+                    statusEl.textContent = 'Server returned an invalid response. Please try again.';
+                    statusEl.className = 'status error';
+                    return;
+                }
+
+                if (!response.ok || !result.success) {
+                    let message = (result && (result.message || result.error)) || 'Unknown error';
+                    if (result && result.error === 'transcription_backend_unavailable') {
+                        message = 'Speech-to-text backend is unavailable. ' +
+                            'Make sure Whisper and ffmpeg are installed and ffmpeg is on your PATH.';
+                    } else if (typeof message === 'string' && message.toLowerCase().includes('ffmpeg')) {
+                        message = message + ' Please install ffmpeg and ensure it is on your PATH.';
+                    }
+                    statusEl.textContent = 'Failed to generate minutes: ' + message;
+                    statusEl.className = 'status error';
+                    return;
+                }
+
+                statusEl.textContent = 'Minutes generated successfully.';
+                statusEl.className = 'status success';
+                minutesContainer.style.display = 'block';
+                minutesPre.textContent = JSON.stringify(result.minutes || {}, null, 2);
+            } catch (err) {
+                statusEl.textContent = 'Error generating minutes: ' + (err.message || 'Network or server error.');
+                statusEl.className = 'status error';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

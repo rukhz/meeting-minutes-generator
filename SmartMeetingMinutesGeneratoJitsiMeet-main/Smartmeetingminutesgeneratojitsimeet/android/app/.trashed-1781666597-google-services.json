@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "121512797168",
+    "firebase_url": "https://smartmeetingminutesgenerator-default-rtdb.firebaseio.com",
+    "project_id": "smartmeetingminutesgenerator",
+    "storage_bucket": "smartmeetingminutesgenerator.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:121512797168:android:ea4b89c4fbb14a5876b335",
+        "android_client_info": {
+          "package_name": "com.example.smartmeetingminutesgeneratojitsimeet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcahrDCRKCRs4vmEc-1BWj0Cg7VaFKDnI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
